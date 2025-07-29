@@ -5,8 +5,10 @@
 
 'use strict';
 
+const minimatch = require('minimatch');
 const Components = require('../util/Components');
 const docsUrl = require('../util/docsUrl');
+const astUtil = require('../util/ast');
 const isCreateElement = require('../util/isCreateElement');
 const report = require('../util/report');
 
@@ -14,7 +16,6 @@ const report = require('../util/report');
 // Constants
 // ------------------------------------------------------------------------------
 
-const ERROR_MESSAGE_WITHOUT_NAME = 'Declare this component outside parent component or memoize it.';
 const COMPONENT_AS_PROPS_INFO = ' If you want to allow component creation in props, set allowAsProps option to true.';
 const HOOK_REGEXP = /^use[A-Z0-9].*$/;
 
@@ -24,20 +25,21 @@ const HOOK_REGEXP = /^use[A-Z0-9].*$/;
 
 /**
  * Generate error message with given parent component name
- * @param {String} parentName Name of the parent component
- * @returns {String} Error message with parent component name
+ * @param {string} parentName Name of the parent component, if known
+ * @returns {string} Error message with parent component name
  */
 function generateErrorMessageWithParentName(parentName) {
-  return `Declare this component outside parent component "${parentName}" or memoize it.`;
+  return `Do not define components during render. React will see a new component type on every render and destroy the entire subtree’s DOM nodes and state (https://reactjs.org/docs/reconciliation.html#elements-of-different-types). Instead, move this component definition out of the parent component${parentName ? ` “${parentName}” ` : ' '}and pass data as props.`;
 }
 
 /**
- * Check whether given text starts with `render`. Comparison is case-sensitive.
- * @param {String} text Text to validate
- * @returns {Boolean}
+ * Check whether given text matches the pattern passed in.
+ * @param {string} text Text to validate
+ * @param {string} pattern Pattern to match against
+ * @returns {boolean}
  */
-function startsWithRender(text) {
-  return (text || '').startsWith('render');
+function propMatchesRenderPropPattern(text, pattern) {
+  return typeof text === 'string' && minimatch(text, pattern);
 }
 
 /**
@@ -63,20 +65,19 @@ function getClosestMatchingParent(node, context, matcher) {
  * Matcher used to check whether given node is a `createElement` call
  * @param {ASTNode} node The AST node
  * @param {Context} context eslint context
- * @returns {Boolean} True if node is a `createElement` call, false if not
+ * @returns {boolean} True if node is a `createElement` call, false if not
  */
 function isCreateElementMatcher(node, context) {
   return (
-    node
-    && node.type === 'CallExpression'
-    && isCreateElement(node, context)
+    astUtil.isCallExpression(node)
+    && isCreateElement(context, node)
   );
 }
 
 /**
  * Matcher used to check whether given node is a `ObjectExpression`
  * @param {ASTNode} node The AST node
- * @returns {Boolean} True if node is a `ObjectExpression`, false if not
+ * @returns {boolean} True if node is a `ObjectExpression`, false if not
  */
 function isObjectExpressionMatcher(node) {
   return node && node.type === 'ObjectExpression';
@@ -85,7 +86,7 @@ function isObjectExpressionMatcher(node) {
 /**
  * Matcher used to check whether given node is a `JSXExpressionContainer`
  * @param {ASTNode} node The AST node
- * @returns {Boolean} True if node is a `JSXExpressionContainer`, false if not
+ * @returns {boolean} True if node is a `JSXExpressionContainer`, false if not
  */
 function isJSXExpressionContainerMatcher(node) {
   return node && node.type === 'JSXExpressionContainer';
@@ -94,7 +95,7 @@ function isJSXExpressionContainerMatcher(node) {
 /**
  * Matcher used to check whether given node is a `JSXAttribute` of `JSXExpressionContainer`
  * @param {ASTNode} node The AST node
- * @returns {Boolean} True if node is a `JSXAttribute` of `JSXExpressionContainer`, false if not
+ * @returns {boolean} True if node is a `JSXAttribute` of `JSXExpressionContainer`, false if not
  */
 function isJSXAttributeOfExpressionContainerMatcher(node) {
   return (
@@ -108,7 +109,7 @@ function isJSXAttributeOfExpressionContainerMatcher(node) {
 /**
  * Matcher used to check whether given node is an object `Property`
  * @param {ASTNode} node The AST node
- * @returns {Boolean} True if node is a `Property`, false if not
+ * @returns {boolean} True if node is a `Property`, false if not
  */
 function isPropertyOfObjectExpressionMatcher(node) {
   return (
@@ -119,21 +120,12 @@ function isPropertyOfObjectExpressionMatcher(node) {
 }
 
 /**
- * Matcher used to check whether given node is a `CallExpression`
- * @param {ASTNode} node The AST node
- * @returns {Boolean} True if node is a `CallExpression`, false if not
- */
-function isCallExpressionMatcher(node) {
-  return node && node.type === 'CallExpression';
-}
-
-/**
  * Check whether given node or its parent is directly inside `map` call
  * ```jsx
  * {items.map(item => <li />)}
  * ```
  * @param {ASTNode} node The AST node
- * @returns {Boolean} True if node is directly inside `map` call, false if not
+ * @returns {boolean} True if node is directly inside `map` call, false if not
  */
 function isMapCall(node) {
   return (
@@ -148,7 +140,7 @@ function isMapCall(node) {
  * Check whether given node is `ReturnStatement` of a React hook
  * @param {ASTNode} node The AST node
  * @param {Context} context eslint context
- * @returns {Boolean} True if node is a `ReturnStatement` of a React hook, false if not
+ * @returns {boolean} True if node is a `ReturnStatement` of a React hook, false if not
  */
 function isReturnStatementOfHook(node, context) {
   if (
@@ -159,7 +151,7 @@ function isReturnStatementOfHook(node, context) {
     return false;
   }
 
-  const callExpression = getClosestMatchingParent(node, context, isCallExpressionMatcher);
+  const callExpression = getClosestMatchingParent(node, context, astUtil.isCallExpression);
   return (
     callExpression
     && callExpression.callee
@@ -175,15 +167,16 @@ function isReturnStatementOfHook(node, context) {
  * ```
  * @param {ASTNode} node The AST node
  * @param {Context} context eslint context
- * @returns {Boolean} True if component is declared inside a render prop, false if not
+ * @param {string} propNamePattern a pattern to match render props against
+ * @returns {boolean} True if component is declared inside a render prop, false if not
  */
-function isComponentInRenderProp(node, context) {
+function isComponentInRenderProp(node, context, propNamePattern) {
   if (
     node
     && node.parent
     && node.parent.type === 'Property'
     && node.parent.key
-    && startsWithRender(node.parent.key.name)
+    && propMatchesRenderPropPattern(node.parent.key.name, propNamePattern)
   ) {
     return true;
   }
@@ -212,7 +205,7 @@ function isComponentInRenderProp(node, context) {
     const propName = jsxExpressionContainer.parent.name.name;
 
     // Starts with render, e.g. <Component renderFooter={() => <div />} />
-    if (startsWithRender(propName)) {
+    if (propMatchesRenderPropPattern(propName, propNamePattern)) {
       return true;
     }
 
@@ -232,23 +225,24 @@ function isComponentInRenderProp(node, context) {
  * <Component rows={ [{ render: () => <div /> }] } />
  *  ```
  * @param {ASTNode} node The AST node
- * @returns {Boolean} True if component is declared inside a render property, false if not
+ * @param {string} propNamePattern The pattern to match render props against
+ * @returns {boolean} True if component is declared inside a render property, false if not
  */
-function isDirectValueOfRenderProperty(node) {
+function isDirectValueOfRenderProperty(node, propNamePattern) {
   return (
     node
     && node.parent
     && node.parent.type === 'Property'
     && node.parent.key
     && node.parent.key.type === 'Identifier'
-    && startsWithRender(node.parent.key.name)
+    && propMatchesRenderPropPattern(node.parent.key.name, propNamePattern)
   );
 }
 
 /**
  * Resolve the component name of given node
  * @param {ASTNode} node The AST node of the component
- * @returns {String} Name of the component, if any
+ * @returns {string} Name of the component, if any
  */
 function resolveComponentName(node) {
   const parentName = node.id && node.id.name;
@@ -266,10 +260,11 @@ function resolveComponentName(node) {
 // Rule Definition
 // ------------------------------------------------------------------------------
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Prevent creating unstable components inside components',
+      description: 'Disallow creating unstable components inside components',
       category: 'Possible Errors',
       recommended: false,
       url: docsUrl('no-unstable-nested-components'),
@@ -286,6 +281,9 @@ module.exports = {
         allowAsProps: {
           type: 'boolean',
         },
+        propNamePattern: {
+          type: 'string',
+        },
       },
       additionalProperties: false,
     }],
@@ -293,6 +291,7 @@ module.exports = {
 
   create: Components.detect((context, components, utils) => {
     const allowAsProps = context.options.some((option) => option && option.allowAsProps);
+    const propNamePattern = (context.options[0] || {}).propNamePattern || 'render*';
 
     /**
      * Check whether given node is declared inside class component's render block
@@ -303,10 +302,10 @@ module.exports = {
      * ...
      * ```
      * @param {ASTNode} node The AST node being checked
-     * @returns {Boolean} True if node is inside class component's render block, false if not
+     * @returns {boolean} True if node is inside class component's render block, false if not
      */
     function isInsideRenderMethod(node) {
-      const parentComponent = utils.getParentComponent();
+      const parentComponent = utils.getParentComponent(node);
 
       if (!parentComponent || parentComponent.type !== 'ClassDeclaration') {
         return false;
@@ -331,11 +330,11 @@ module.exports = {
      * ...
      * ```
      * @param {ASTNode} node The AST node being checked
-     * @returns {Boolean} True if given node a function component declared inside class component, false if not
+     * @returns {boolean} True if given node a function component declared inside class component, false if not
      */
     function isFunctionComponentInsideClassComponent(node) {
-      const parentComponent = utils.getParentComponent();
-      const parentStatelessComponent = utils.getParentStatelessComponent();
+      const parentComponent = utils.getParentComponent(node);
+      const parentStatelessComponent = utils.getParentStatelessComponent(node);
 
       return (
         parentComponent
@@ -354,7 +353,7 @@ module.exports = {
      * })
      * ```
      * @param {ASTNode} node The AST node
-     * @returns {Boolean} True if node is declare inside `createElement` call's props, false if not
+     * @returns {boolean} True if node is declare inside `createElement` call's props, false if not
      */
     function isComponentInsideCreateElementsProp(node) {
       if (!components.get(node)) {
@@ -377,7 +376,7 @@ module.exports = {
      * { footer: () => <div /> }
      * ```
      * @param {ASTNode} node The AST node being checked
-     * @returns {Boolean} True if node is a component declared inside prop, false if not
+     * @returns {boolean} True if node is a component declared inside prop, false if not
      */
     function isComponentInProp(node) {
       if (isPropertyOfObjectExpressionMatcher(node)) {
@@ -399,7 +398,7 @@ module.exports = {
      * {{ a: () => null }}
      * ```
      * @param {ASTNode} node The AST node being checked
-     * @returns {Boolean} True if node is a stateless component returning non-JSX, false if not
+     * @returns {boolean} True if node is a stateless component returning non-JSX, false if not
      */
     function isStatelessComponentReturningNull(node) {
       const component = utils.getStatelessComponent(node);
@@ -427,22 +426,22 @@ module.exports = {
 
       if (
         // Support allowAsProps option
-        (isDeclaredInsideProps && (allowAsProps || isComponentInRenderProp(node, context)))
+        (isDeclaredInsideProps && (allowAsProps || isComponentInRenderProp(node, context, propNamePattern)))
 
         // Prevent reporting components created inside Array.map calls
         || isMapCall(node)
         || isMapCall(node.parent)
 
-        // Do not mark components declared inside hooks (or falsly '() => null' clean-up methods)
+        // Do not mark components declared inside hooks (or falsy '() => null' clean-up methods)
         || isReturnStatementOfHook(node, context)
 
         // Do not mark objects containing render methods
-        || isDirectValueOfRenderProperty(node)
+        || isDirectValueOfRenderProperty(node, propNamePattern)
 
         // Prevent reporting nested class components twice
         || isInsideRenderMethod(node)
 
-        // Prevent falsely reporting deteceted "components" which do not return JSX
+        // Prevent falsely reporting detected "components" which do not return JSX
         || isStatelessComponentReturningNull(node)
       ) {
         return;
@@ -464,9 +463,7 @@ module.exports = {
           return;
         }
 
-        let message = parentName
-          ? generateErrorMessageWithParentName(parentName)
-          : ERROR_MESSAGE_WITHOUT_NAME;
+        let message = generateErrorMessageWithParentName(parentName);
 
         // Add information about allowAsProps option when component is declared inside prop
         if (isDeclaredInsideProps && !allowAsProps) {
@@ -488,6 +485,7 @@ module.exports = {
       ArrowFunctionExpression(node) { validate(node); },
       FunctionExpression(node) { validate(node); },
       ClassDeclaration(node) { validate(node); },
+      CallExpression(node) { validate(node); },
     };
   }),
 };

@@ -5,7 +5,7 @@
 
 'use strict';
 
-const has = require('object.hasown/polyfill')();
+const has = require('hasown');
 const docsUrl = require('../util/docsUrl');
 const report = require('../util/report');
 
@@ -17,10 +17,11 @@ const messages = {
   noDuplicateProps: 'No duplicate props allowed',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Enforce no duplicate props',
+      description: 'Disallow duplicate properties in JSX',
       category: 'Possible Errors',
       recommended: true,
       url: docsUrl('jsx-no-duplicate-props'),

@@ -1,4 +1,5 @@
+'use strict';
 require('../../../modules/esnext.array.find-last-index');
-var entryVirtual = require('../../../internals/entry-virtual');
+var parent = require('../../../stable/array/virtual/find-last-index');
 
-module.exports = entryVirtual('Array').findLastIndex;
+module.exports = parent;

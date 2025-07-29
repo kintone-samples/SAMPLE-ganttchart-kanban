@@ -1,4 +1,5 @@
+'use strict';
 require('../../modules/esnext.array.find-last');
-var entryUnbind = require('../../internals/entry-unbind');
+var parent = require('../../stable/array/find-last');
 
-module.exports = entryUnbind('Array', 'findLast');
+module.exports = parent;

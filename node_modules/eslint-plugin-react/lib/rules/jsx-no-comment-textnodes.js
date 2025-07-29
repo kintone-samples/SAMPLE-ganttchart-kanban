@@ -6,6 +6,7 @@
 'use strict';
 
 const docsUrl = require('../util/docsUrl');
+const getText = require('../util/eslint').getText;
 const report = require('../util/report');
 
 // ------------------------------------------------------------------------------
@@ -16,9 +17,14 @@ const messages = {
   putCommentInBraces: 'Comments inside children section of tag should be placed inside braces',
 };
 
-function checkText(node, context) {
+/**
+ * @param {Context} context
+ * @param {ASTNode} node
+ * @returns {void}
+ */
+function checkText(context, node) {
   // since babel-eslint has the wrong node.raw, we'll get the source text
-  const rawValue = context.getSourceCode().getText(node);
+  const rawValue = getText(context, node);
   if (/^\s*\/(\/|\*)/m.test(rawValue)) {
     // inside component, e.g. <div>literal</div>
     if (
@@ -33,10 +39,11 @@ function checkText(node, context) {
   }
 }
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Comments inside children section of tag should be placed inside braces',
+      description: 'Disallow comments from being inserted as text nodes',
       category: 'Possible Errors',
       recommended: true,
       url: docsUrl('jsx-no-comment-textnodes'),
@@ -44,11 +51,7 @@ module.exports = {
 
     messages,
 
-    schema: [{
-      type: 'object',
-      properties: {},
-      additionalProperties: false,
-    }],
+    schema: [],
   },
 
   create(context) {
@@ -58,10 +61,10 @@ module.exports = {
 
     return {
       Literal(node) {
-        checkText(node, context);
+        checkText(context, node);
       },
       JSXText(node) {
-        checkText(node, context);
+        checkText(context, node);
       },
     };
   },

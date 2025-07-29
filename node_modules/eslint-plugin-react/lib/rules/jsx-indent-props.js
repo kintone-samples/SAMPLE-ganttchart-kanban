@@ -30,8 +30,11 @@
 
 'use strict';
 
+const repeat = require('string.prototype.repeat');
+
 const astUtil = require('../util/ast');
 const docsUrl = require('../util/docsUrl');
+const getText = require('../util/eslint').getText;
 const reportC = require('../util/report');
 
 // ------------------------------------------------------------------------------
@@ -42,10 +45,11 @@ const messages = {
   wrongIndent: 'Expected indentation of {{needed}} {{type}} {{characters}} but found {{gotten}}.',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Validate props indentation in JSX',
+      description: 'Enforce props indentation in JSX',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('jsx-indent-props'),
@@ -55,7 +59,7 @@ module.exports = {
     messages,
 
     schema: [{
-      oneOf: [{
+      anyOf: [{
         enum: ['tab', 'first'],
       }, {
         type: 'integer',
@@ -63,7 +67,7 @@ module.exports = {
         type: 'object',
         properties: {
           indentMode: {
-            oneOf: [{
+            anyOf: [{
               enum: ['tab', 'first'],
             }, {
               type: 'integer',
@@ -113,8 +117,8 @@ module.exports = {
     /**
      * Reports a given indent violation and properly pluralizes the message
      * @param {ASTNode} node Node violating the indent rule
-     * @param {Number} needed Expected indentation character count
-     * @param {Number} gotten Indentation character count in the actual node/code
+     * @param {number} needed Expected indentation character count
+     * @param {number} gotten Indentation character count in the actual node/code
      */
     function report(node, needed, gotten) {
       const msgContext = {
@@ -129,7 +133,8 @@ module.exports = {
         data: msgContext,
         fix(fixer) {
           return fixer.replaceTextRange([node.range[0] - node.loc.start.column, node.range[0]],
-            Array(needed + 1).join(indentType === 'space' ? ' ' : '\t'));
+            repeat(indentType === 'space' ? ' ' : '\t', needed)
+          );
         },
       });
     }
@@ -137,10 +142,10 @@ module.exports = {
     /**
      * Get node indent
      * @param {ASTNode} node Node to examine
-     * @return {Number} Indent
+     * @return {number} Indent
      */
     function getNodeIndent(node) {
-      let src = context.getSourceCode().getText(node, node.loc.start.column + extraColumnStart);
+      let src = getText(context, node, node.loc.start.column + extraColumnStart);
       const lines = src.split('\n');
       src = lines[0];
 
@@ -169,20 +174,26 @@ module.exports = {
     /**
      * Check indent for nodes list
      * @param {ASTNode[]} nodes list of node objects
-     * @param {Number} indent needed indent
+     * @param {number} indent needed indent
      */
     function checkNodesIndent(nodes, indent) {
+      let nestedIndent = indent;
       nodes.forEach((node) => {
         const nodeIndent = getNodeIndent(node);
-        if (line.isUsingOperator && !line.currentOperator && indentSize !== 'first' && !ignoreTernaryOperator) {
-          indent += indentSize;
+        if (
+          line.isUsingOperator
+          && !line.currentOperator
+          && indentSize !== 'first'
+          && !ignoreTernaryOperator
+        ) {
+          nestedIndent += indentSize;
           line.isUsingOperator = false;
         }
         if (
           node.type !== 'ArrayExpression' && node.type !== 'ObjectExpression'
-          && nodeIndent !== indent && astUtil.isNodeFirstInLine(context, node)
+          && nodeIndent !== nestedIndent && astUtil.isNodeFirstInLine(context, node)
         ) {
-          report(node, indent, nodeIndent);
+          report(node, nestedIndent, nodeIndent);
         }
       });
     }

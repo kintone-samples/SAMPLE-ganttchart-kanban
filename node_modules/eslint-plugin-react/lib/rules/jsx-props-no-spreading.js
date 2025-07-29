@@ -38,10 +38,11 @@ const messages = {
   noSpreading: 'Prop spreading is forbidden',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Prevent JSX prop spreading',
+      description: 'Disallow JSX prop spreading',
       category: 'Best Practices',
       recommended: false,
       url: docsUrl('jsx-props-no-spreading'),
@@ -57,6 +58,9 @@ module.exports = {
             enum: [OPTIONS.enforce, OPTIONS.ignore],
           },
           custom: {
+            enum: [OPTIONS.enforce, OPTIONS.ignore],
+          },
+          explicitSpread: {
             enum: [OPTIONS.enforce, OPTIONS.ignore],
           },
           exceptions: {

@@ -16,10 +16,11 @@ const messages = {
   noThisInSFC: 'Stateless functional components should not use `this`',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Report "this" being used in stateless components',
+      description: 'Disallow `this` from being used in stateless functional components',
       category: 'Possible Errors',
       recommended: false,
       url: docsUrl('no-this-in-sfc'),
@@ -33,7 +34,7 @@ module.exports = {
   create: Components.detect((context, components, utils) => ({
     MemberExpression(node) {
       if (node.object.type === 'ThisExpression') {
-        const component = components.get(utils.getParentStatelessComponent());
+        const component = components.get(utils.getParentStatelessComponent(node));
         if (!component || (component.node && component.node.parent && component.node.parent.type === 'Property')) {
           return;
         }

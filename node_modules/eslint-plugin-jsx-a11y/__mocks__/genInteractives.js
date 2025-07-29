@@ -4,11 +4,16 @@
 
 import { dom, roles } from 'aria-query';
 import includes from 'array-includes';
-import JSXAttributeMock, { JSXAttributeMockType } from './JSXAttributeMock';
-import JSXElementMock, { JSXElementMockType } from './JSXElementMock';
+import fromEntries from 'object.fromentries';
 
-const domElements = [...dom.keys()];
-const roleNames = [...roles.keys()];
+import JSXAttributeMock from './JSXAttributeMock';
+import JSXElementMock from './JSXElementMock';
+
+import type { JSXAttributeMockType } from './JSXAttributeMock';
+import type { JSXElementMockType } from './JSXElementMock';
+
+const domElements = dom.keys();
+const roleNames = roles.keys();
 
 const interactiveElementsMap = {
   a: [{ prop: 'href', value: '#' }],
@@ -40,7 +45,6 @@ const interactiveElementsMap = {
   'input[type="time"]': [{ prop: 'type', value: 'time' }],
   'input[type="url"]': [{ prop: 'type', value: 'url' }],
   'input[type="week"]': [{ prop: 'type', value: 'week' }],
-  link: [{ prop: 'href', value: '#' }],
   menuitem: [],
   option: [],
   select: [],
@@ -48,7 +52,7 @@ const interactiveElementsMap = {
   // Whereas ARIA makes a distinction between cell and gridcell, the AXObject
   // treats them both as CellRole and since gridcell is interactive, we consider
   // cell interactive as well.
-  // td: [],
+  td: [],
   th: [],
   tr: [],
   textarea: [],
@@ -57,25 +61,27 @@ const interactiveElementsMap = {
 
 const nonInteractiveElementsMap: {[string]: Array<{[string]: string}>} = {
   abbr: [],
-  aside: [],
+  address: [],
   article: [],
+  aside: [],
   blockquote: [],
-  body: [],
   br: [],
   caption: [],
+  code: [],
   dd: [],
+  del: [],
   details: [],
   dfn: [],
   dialog: [],
   dir: [],
   dl: [],
   dt: [],
+  em: [],
   fieldset: [],
   figcaption: [],
   figure: [],
   footer: [],
   form: [],
-  frame: [],
   h1: [],
   h2: [],
   h3: [],
@@ -83,8 +89,10 @@ const nonInteractiveElementsMap: {[string]: Array<{[string]: string}>} = {
   h5: [],
   h6: [],
   hr: [],
+  html: [],
   iframe: [],
   img: [],
+  ins: [],
   label: [],
   legend: [],
   li: [],
@@ -103,26 +111,22 @@ const nonInteractiveElementsMap: {[string]: Array<{[string]: string}>} = {
   ruby: [],
   'section[aria-label]': [{ prop: 'aria-label' }],
   'section[aria-labelledby]': [{ prop: 'aria-labelledby' }],
+  strong: [],
+  sub: [],
+  sup: [],
   table: [],
   tbody: [],
-  td: [],
   tfoot: [],
   thead: [],
   time: [],
   ul: [],
 };
 
-const indeterminantInteractiveElementsMap = domElements.reduce(
-  (accumulator: { [key: string]: Array<any> }, name: string): { [key: string]: Array<any> } => ({
-    ...accumulator,
-    [name]: [],
-  }),
-  {},
-);
+const indeterminantInteractiveElementsMap: { [key: string]: Array<any> } = fromEntries(domElements.map((name) => [name, []]));
 
 Object.keys(interactiveElementsMap)
   .concat(Object.keys(nonInteractiveElementsMap))
-  .forEach((name: string) => delete indeterminantInteractiveElementsMap[name]);
+  .forEach((name) => delete indeterminantInteractiveElementsMap[name]);
 
 const abstractRoles = roleNames.filter((role) => roles.get(role).abstract);
 
@@ -135,22 +139,25 @@ const interactiveRoles = []
     // aria-activedescendant, thus in practice we treat it as a widget.
     'toolbar',
   )
-  .filter((role) => !roles.get(role).abstract)
-  .filter((role) => roles.get(role).superClass.some((klasses) => includes(klasses, 'widget')));
+  .filter((role) => (
+    !roles.get(role).abstract
+    && roles.get(role).superClass.some((klasses) => includes(klasses, 'widget'))
+  ));
 
 const nonInteractiveRoles = roleNames
-  .filter((role) => !roles.get(role).abstract)
-  .filter((role) => !roles.get(role).superClass.some((klasses) => includes(klasses, 'widget')))
-  // 'toolbar' does not descend from widget, but it does support
-  // aria-activedescendant, thus in practice we treat it as a widget.
-  .filter((role) => !includes(['toolbar'], role));
+  .filter((role) => (
+    !roles.get(role).abstract
+    && !roles.get(role).superClass.some((klasses) => includes(klasses, 'widget'))
+
+    // 'toolbar' does not descend from widget, but it does support
+    // aria-activedescendant, thus in practice we treat it as a widget.
+    && !includes(['toolbar'], role)
+  ));
 
 export function genElementSymbol(openingElement: Object): string {
   return (
     openingElement.name.name + (openingElement.attributes.length > 0
-      ? `${openingElement.attributes
-        .map((attr) => `[${attr.name.name}="${attr.value.value}"]`)
-        .join('')}`
+      ? `${openingElement.attributes.map((attr) => `[${attr.name.name}="${attr.value.value}"]`).join('')}`
       : ''
     )
   );
@@ -169,7 +176,7 @@ export function genInteractiveElements(): Array<JSXElementMockType> {
 }
 
 export function genInteractiveRoleElements(): Array<JSXElementMockType> {
-  return [...interactiveRoles, 'button article', 'fakerole button article'].map((value): JSXElementMockType => JSXElementMock(
+  return interactiveRoles.concat('button article', 'fakerole button article').map((value): JSXElementMockType => JSXElementMock(
     'div',
     [JSXAttributeMock('role', value)],
   ));

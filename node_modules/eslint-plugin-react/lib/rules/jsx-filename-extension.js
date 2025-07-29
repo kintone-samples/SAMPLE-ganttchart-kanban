@@ -16,6 +16,7 @@ const report = require('../util/report');
 const DEFAULTS = {
   allow: 'always',
   extensions: ['.jsx'],
+  ignoreFilesWithoutCode: false,
 };
 
 // ------------------------------------------------------------------------------
@@ -27,10 +28,11 @@ const messages = {
   extensionOnlyForJSX: 'Only files containing JSX may use the extension \'{{ext}}\'',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Restrict file extensions that may contain JSX',
+      description: 'Disallow file extensions that may contain JSX',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('jsx-filename-extension'),
@@ -50,6 +52,9 @@ module.exports = {
             type: 'string',
           },
         },
+        ignoreFilesWithoutCode: {
+          type: 'boolean',
+        },
       },
       additionalProperties: false,
     }],
@@ -67,6 +72,8 @@ module.exports = {
 
     const allow = (context.options[0] && context.options[0].allow) || DEFAULTS.allow;
     const allowedExtensions = (context.options[0] && context.options[0].extensions) || DEFAULTS.extensions;
+    const ignoreFilesWithoutCode = (context.options[0] && context.options[0].ignoreFilesWithoutCode)
+      || DEFAULTS.ignoreFilesWithoutCode;
     const isAllowedExtension = allowedExtensions.some((extension) => filename.slice(-extension.length) === extension);
 
     function handleJSX(node) {
@@ -97,6 +104,9 @@ module.exports = {
         }
 
         if (isAllowedExtension && allow === 'as-needed') {
+          if (ignoreFilesWithoutCode && node.body.length === 0) {
+            return;
+          }
           report(context, messages.extensionOnlyForJSX, 'extensionOnlyForJSX', {
             node,
             data: {

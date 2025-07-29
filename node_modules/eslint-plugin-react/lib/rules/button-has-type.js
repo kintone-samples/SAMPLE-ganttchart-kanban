@@ -28,10 +28,11 @@ const messages = {
   forbiddenValue: '"{{value}}" is an invalid value for button type attribute',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Forbid "button" element without an explicit "type" attribute',
+      description: 'Disallow usage of `button` elements without an explicit `type` attribute',
       category: 'Possible Errors',
       recommended: false,
       url: docsUrl('button-has-type'),
@@ -126,7 +127,7 @@ module.exports = {
           return;
         }
 
-        if (typeProp.value.type === 'JSXExpressionContainer') {
+        if (typeProp.value && typeProp.value.type === 'JSXExpressionContainer') {
           checkExpression(node, typeProp.value.expression);
           return;
         }
@@ -135,7 +136,7 @@ module.exports = {
         checkValue(node, propValue);
       },
       CallExpression(node) {
-        if (!isCreateElement(node, context) || node.arguments.length < 1) {
+        if (!isCreateElement(context, node) || node.arguments.length < 1) {
           return;
         }
 
@@ -149,14 +150,19 @@ module.exports = {
         }
 
         const props = node.arguments[1].properties;
-        const typeProp = props.find((prop) => prop.key && prop.key.name === 'type');
+        const typeProp = props.find((prop) => (
+          'key' in prop
+          && prop.key
+          && 'name' in prop.key
+          && prop.key.name === 'type'
+        ));
 
         if (!typeProp) {
           reportMissing(node);
           return;
         }
 
-        checkExpression(node, typeProp.value);
+        checkExpression(node, 'value' in typeProp ? typeProp.value : undefined);
       },
     };
   },

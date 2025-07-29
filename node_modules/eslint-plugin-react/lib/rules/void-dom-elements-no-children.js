@@ -6,10 +6,10 @@
 
 'use strict';
 
-const has = require('object.hasown/polyfill')();
+const has = require('hasown');
 
-const Components = require('../util/Components');
 const docsUrl = require('../util/docsUrl');
+const isCreateElement = require('../util/isCreateElement');
 const report = require('../util/report');
 
 // ------------------------------------------------------------------------------
@@ -47,10 +47,11 @@ function isVoidDOMElement(elementName) {
 
 const noChildrenInVoidEl = 'Void DOM element <{{element}} /> cannot receive children.';
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Prevent passing of children to void DOM elements (e.g. `<br />`).',
+      description: 'Disallow void DOM elements (e.g. `<img />`, `<br />`) from receiving children',
       category: 'Best Practices',
       recommended: false,
       url: docsUrl('void-dom-elements-no-children'),
@@ -63,7 +64,7 @@ module.exports = {
     schema: [],
   },
 
-  create: Components.detect((context, components, utils) => ({
+  create: (context) => ({
     JSXElement(node) {
       const elementName = node.openingElement.name.name;
 
@@ -108,7 +109,7 @@ module.exports = {
         return;
       }
 
-      if (!utils.isCreateElement(node)) {
+      if (!isCreateElement(context, node)) {
         return;
       }
 
@@ -119,7 +120,7 @@ module.exports = {
         return;
       }
 
-      const elementName = args[0].value;
+      const elementName = 'value' in args[0] ? args[0].value : undefined;
 
       if (!isVoidDOMElement(elementName)) {
         // e.g. React.createElement('div');
@@ -144,7 +145,7 @@ module.exports = {
       const props = args[1].properties;
 
       const hasChildrenPropOrDanger = props.some((prop) => {
-        if (!prop.key) {
+        if (!('key' in prop) || !prop.key || !('name' in prop.key)) {
           return false;
         }
 
@@ -161,5 +162,5 @@ module.exports = {
         });
       }
     },
-  })),
+  }),
 };

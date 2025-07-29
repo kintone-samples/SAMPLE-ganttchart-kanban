@@ -6,6 +6,8 @@
 
 'use strict';
 
+const values = require('object.values');
+
 const Components = require('../util/Components');
 const docsUrl = require('../util/docsUrl');
 const report = require('../util/report');
@@ -19,10 +21,11 @@ const messages = {
   defaultHasNoType: 'defaultProp "{{name}}" has no corresponding propTypes declaration.',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Enforce all defaultProps are defined and not "required" in propTypes.',
+      description: 'Enforce all defaultProps have a corresponding non-required PropType',
       category: 'Best Practices',
       url: docsUrl('default-props-match-prop-types'),
     },
@@ -91,15 +94,15 @@ module.exports = {
 
     return {
       'Program:exit'() {
-        const list = components.list();
-
         // If no defaultProps could be found, we don't report anything.
-        Object.keys(list).filter((component) => list[component].defaultProps).forEach((component) => {
-          reportInvalidDefaultProps(
-            list[component].declaredPropTypes,
-            list[component].defaultProps || {}
-          );
-        });
+        values(components.list())
+          .filter((component) => component.defaultProps)
+          .forEach((component) => {
+            reportInvalidDefaultProps(
+              component.declaredPropTypes,
+              component.defaultProps || {}
+            );
+          });
       },
     };
   }),

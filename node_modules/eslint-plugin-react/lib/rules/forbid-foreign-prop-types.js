@@ -13,10 +13,11 @@ const messages = {
   forbiddenPropType: 'Using propTypes from another component is not safe because they may be removed in production builds',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Forbid using another component\'s propTypes',
+      description: 'Disallow using another component\'s propTypes',
       category: 'Best Practices',
       recommended: false,
       url: docsUrl('forbid-foreign-prop-types'),
@@ -108,7 +109,9 @@ module.exports = {
             && !ast.isAssignmentLHS(node)
             && !isAllowedAssignment(node)
           )) || (
+            // @ts-expect-error: The JSXText type is not present in the estree type definitions
             (node.property.type === 'Literal' || node.property.type === 'JSXText')
+            && 'value' in node.property
             && node.property.value === 'propTypes'
             && !ast.isAssignmentLHS(node)
             && !isAllowedAssignment(node)
@@ -121,7 +124,11 @@ module.exports = {
       },
 
       ObjectPattern(node) {
-        const propTypesNode = node.properties.find((property) => property.type === 'Property' && property.key.name === 'propTypes');
+        const propTypesNode = node.properties.find((property) => (
+          property.type === 'Property'
+          && 'name' in property.key
+          && property.key.name === 'propTypes'
+        ));
 
         if (propTypesNode) {
           report(context, messages.forbiddenPropType, 'forbiddenPropType', {

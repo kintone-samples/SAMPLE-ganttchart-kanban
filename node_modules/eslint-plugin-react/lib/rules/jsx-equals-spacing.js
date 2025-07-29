@@ -6,6 +6,7 @@
 'use strict';
 
 const docsUrl = require('../util/docsUrl');
+const getSourceCode = require('../util/eslint').getSourceCode;
 const report = require('../util/report');
 
 // ------------------------------------------------------------------------------
@@ -19,10 +20,11 @@ const messages = {
   needSpaceAfter: 'A space is required after \'=\'',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Disallow or enforce spaces around equal signs in JSX attributes',
+      description: 'Enforce or disallow spaces around equal signs in JSX attributes',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('jsx-equals-spacing'),
@@ -59,7 +61,7 @@ module.exports = {
             return;
           }
 
-          const sourceCode = context.getSourceCode();
+          const sourceCode = getSourceCode(context);
           const equalToken = sourceCode.getTokenAfter(attrNode.name);
           const spacedBefore = sourceCode.isSpaceBetweenTokens(attrNode.name, equalToken);
           const spacedAfter = sourceCode.isSpaceBetweenTokens(equalToken, attrNode.value);

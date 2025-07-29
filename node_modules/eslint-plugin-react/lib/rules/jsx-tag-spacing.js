@@ -8,6 +8,10 @@
 const getTokenBeforeClosingBracket = require('../util/getTokenBeforeClosingBracket');
 const docsUrl = require('../util/docsUrl');
 const report = require('../util/report');
+const eslintUtil = require('../util/eslint');
+
+const getFirstTokens = eslintUtil.getFirstTokens;
+const getSourceCode = eslintUtil.getSourceCode;
 
 const messages = {
   selfCloseSlashNoSpace: 'Whitespace is forbidden between `/` and `>`; write `/>`',
@@ -16,10 +20,12 @@ const messages = {
   closeSlashNeedSpace: 'Whitespace is required between `<` and `/`; write `< /`',
   beforeSelfCloseNoSpace: 'A space is forbidden before closing bracket',
   beforeSelfCloseNeedSpace: 'A space is required before closing bracket',
+  beforeSelfCloseNeedNewline: 'A newline is required before closing bracket',
   afterOpenNoSpace: 'A space is forbidden after opening bracket',
   afterOpenNeedSpace: 'A space is required after opening bracket',
   beforeCloseNoSpace: 'A space is forbidden before closing bracket',
   beforeCloseNeedSpace: 'Whitespace is required before closing bracket',
+  beforeCloseNeedNewline: 'A newline is required before closing bracket',
 };
 
 // ------------------------------------------------------------------------------
@@ -27,7 +33,7 @@ const messages = {
 // ------------------------------------------------------------------------------
 
 function validateClosingSlash(context, node, option) {
-  const sourceCode = context.getSourceCode();
+  const sourceCode = getSourceCode(context);
 
   let adjacent;
 
@@ -62,7 +68,7 @@ function validateClosingSlash(context, node, option) {
       });
     }
   } else {
-    const firstTokens = sourceCode.getFirstTokens(node, 2);
+    const firstTokens = getFirstTokens(context, node, 2);
 
     adjacent = !sourceCode.isSpaceBetweenTokens(firstTokens[0], firstTokens[1]);
 
@@ -95,15 +101,30 @@ function validateClosingSlash(context, node, option) {
 }
 
 function validateBeforeSelfClosing(context, node, option) {
-  const sourceCode = context.getSourceCode();
+  const sourceCode = getSourceCode(context);
   const leftToken = getTokenBeforeClosingBracket(node);
   const closingSlash = sourceCode.getTokenAfter(leftToken);
+
+  if (node.loc.start.line !== node.loc.end.line && option === 'proportional-always') {
+    if (leftToken.loc.end.line === closingSlash.loc.start.line) {
+      report(context, messages.beforeSelfCloseNeedNewline, 'beforeSelfCloseNeedNewline', {
+        node,
+        loc: leftToken.loc.end,
+        fix(fixer) {
+          return fixer.insertTextBefore(closingSlash, '\n');
+        },
+      });
+      return;
+    }
+  }
 
   if (leftToken.loc.end.line !== closingSlash.loc.start.line) {
     return;
   }
 
-  if (option === 'always' && !sourceCode.isSpaceBetweenTokens(leftToken, closingSlash)) {
+  const adjacent = !sourceCode.isSpaceBetweenTokens(leftToken, closingSlash);
+
+  if ((option === 'always' || option === 'proportional-always') && adjacent) {
     report(context, messages.beforeSelfCloseNeedSpace, 'beforeSelfCloseNeedSpace', {
       node,
       loc: closingSlash.loc.start,
@@ -111,7 +132,7 @@ function validateBeforeSelfClosing(context, node, option) {
         return fixer.insertTextBefore(closingSlash, ' ');
       },
     });
-  } else if (option === 'never' && sourceCode.isSpaceBetweenTokens(leftToken, closingSlash)) {
+  } else if (option === 'never' && !adjacent) {
     report(context, messages.beforeSelfCloseNoSpace, 'beforeSelfCloseNoSpace', {
       node,
       loc: closingSlash.loc.start,
@@ -124,7 +145,7 @@ function validateBeforeSelfClosing(context, node, option) {
 }
 
 function validateAfterOpening(context, node, option) {
-  const sourceCode = context.getSourceCode();
+  const sourceCode = getSourceCode(context);
   const openingToken = sourceCode.getTokenBefore(node.name);
 
   if (option === 'allow-multiline') {
@@ -165,10 +186,24 @@ function validateAfterOpening(context, node, option) {
 function validateBeforeClosing(context, node, option) {
   // Don't enforce this rule for self closing tags
   if (!node.selfClosing) {
-    const sourceCode = context.getSourceCode();
-    const lastTokens = sourceCode.getLastTokens(node, 2);
-    const closingToken = lastTokens[1];
-    const leftToken = lastTokens[0];
+    const sourceCode = getSourceCode(context);
+    const leftToken = option === 'proportional-always'
+      ? getTokenBeforeClosingBracket(node)
+      : sourceCode.getLastTokens(node, 2)[0];
+    const closingToken = sourceCode.getTokenAfter(leftToken);
+
+    if (node.loc.start.line !== node.loc.end.line && option === 'proportional-always') {
+      if (leftToken.loc.end.line === closingToken.loc.start.line) {
+        report(context, messages.beforeCloseNeedNewline, 'beforeCloseNeedNewline', {
+          node,
+          loc: leftToken.loc.end,
+          fix(fixer) {
+            return fixer.insertTextBefore(closingToken, '\n');
+          },
+        });
+        return;
+      }
+    }
 
     if (leftToken.loc.start.line !== closingToken.loc.start.line) {
       return;
@@ -198,6 +233,17 @@ function validateBeforeClosing(context, node, option) {
           return fixer.insertTextBefore(closingToken, ' ');
         },
       });
+    } else if (option === 'proportional-always' && node.type === 'JSXOpeningElement' && adjacent !== (node.loc.start.line === node.loc.end.line)) {
+      report(context, messages.beforeCloseNeedSpace, 'beforeCloseNeedSpace', {
+        node,
+        loc: {
+          start: leftToken.loc.end,
+          end: closingToken.loc.start,
+        },
+        fix(fixer) {
+          return fixer.insertTextBefore(closingToken, ' ');
+        },
+      });
     }
   }
 }
@@ -213,10 +259,11 @@ const optionDefaults = {
   beforeClosing: 'allow',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Validate whitespace in and around the JSX opening and closing brackets',
+      description: 'Enforce whitespace in and around the JSX opening and closing brackets',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('jsx-tag-spacing'),
@@ -233,13 +280,13 @@ module.exports = {
             enum: ['always', 'never', 'allow'],
           },
           beforeSelfClosing: {
-            enum: ['always', 'never', 'allow'],
+            enum: ['always', 'proportional-always', 'never', 'allow'],
           },
           afterOpening: {
             enum: ['always', 'allow-multiline', 'never', 'allow'],
           },
           beforeClosing: {
-            enum: ['always', 'never', 'allow'],
+            enum: ['always', 'proportional-always', 'never', 'allow'],
           },
         },
         default: optionDefaults,

@@ -6,7 +6,10 @@
 
 'use strict';
 
+const values = require('object.values');
+
 const Components = require('../util/Components');
+const componentUtil = require('../util/componentUtil');
 const docsUrl = require('../util/docsUrl');
 const report = require('../util/report');
 
@@ -18,10 +21,11 @@ const messages = {
   noDirectMutation: 'Do not mutate state directly. Use setState().',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Prevent direct mutation of this.state',
+      description: 'Disallow direct mutation of this.state',
       category: 'Possible Errors',
       recommended: true,
       url: docsUrl('no-direct-mutation-state'),
@@ -34,10 +38,10 @@ module.exports = {
     /**
      * Checks if the component is valid
      * @param {Object} component The component to process
-     * @returns {Boolean} True if the component is valid, false if not.
+     * @returns {boolean} True if the component is valid, false if not.
      */
     function isValid(component) {
-      return Boolean(component && !component.mutateSetState);
+      return !!component && !component.mutateSetState;
     }
 
     /**
@@ -55,7 +59,7 @@ module.exports = {
     }
 
     /**
-     * Walks throughs the MemberExpression to the top-most property.
+     * Walks through the MemberExpression to the top-most property.
      * @param {Object} node The node to process
      * @returns {Object} The outer-most MemberExpression
      */
@@ -69,7 +73,7 @@ module.exports = {
     /**
      * Determine if we should currently ignore assignments in this component.
      * @param {?Object} component The component to process
-     * @returns {Boolean} True if we should skip assignment checks.
+     * @returns {boolean} True if we should skip assignment checks.
      */
     function shouldIgnoreComponent(component) {
       return !component || (component.inConstructor && !component.inCallExpression);
@@ -94,12 +98,12 @@ module.exports = {
       },
 
       AssignmentExpression(node) {
-        const component = components.get(utils.getParentComponent());
+        const component = components.get(utils.getParentComponent(node));
         if (shouldIgnoreComponent(component) || !node.left || !node.left.object) {
           return;
         }
         const item = getOuterMemberExpression(node.left);
-        if (utils.isStateMemberExpression(item)) {
+        if (componentUtil.isStateMemberExpression(item)) {
           const mutations = (component && component.mutations) || [];
           mutations.push(node.left.object);
           components.set(node, {
@@ -110,12 +114,12 @@ module.exports = {
       },
 
       UpdateExpression(node) {
-        const component = components.get(utils.getParentComponent());
+        const component = components.get(utils.getParentComponent(node));
         if (shouldIgnoreComponent(component) || node.argument.type !== 'MemberExpression') {
           return;
         }
         const item = getOuterMemberExpression(node.argument);
-        if (utils.isStateMemberExpression(item)) {
+        if (componentUtil.isStateMemberExpression(item)) {
           const mutations = (component && component.mutations) || [];
           mutations.push(item);
           components.set(node, {
@@ -140,13 +144,11 @@ module.exports = {
       },
 
       'Program:exit'() {
-        const list = components.list();
-
-        Object.keys(list).forEach((key) => {
-          if (!isValid(list[key])) {
-            reportMutations(list[key]);
-          }
-        });
+        values(components.list())
+          .filter((component) => !isValid(component))
+          .forEach((component) => {
+            reportMutations(component);
+          });
       },
     };
   }),

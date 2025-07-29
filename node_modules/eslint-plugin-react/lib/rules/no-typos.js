@@ -7,6 +7,8 @@
 const PROP_TYPES = Object.keys(require('prop-types'));
 const Components = require('../util/Components');
 const docsUrl = require('../util/docsUrl');
+const astUtil = require('../util/ast');
+const componentUtil = require('../util/componentUtil');
 const report = require('../util/report');
 const lifecycleMethods = require('../util/lifecycleMethods');
 
@@ -27,10 +29,11 @@ const messages = {
   noReactBinding: '`\'react\'` imported without a local `React` binding.',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Prevent common typos',
+      description: 'Disallow common typos',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('no-typos'),
@@ -107,11 +110,11 @@ module.exports = {
           && node.property.name !== 'isRequired'
         ) { // PropTypes.myProp
           checkValidPropType(node.property);
-        } else if (node.object.type === 'CallExpression') {
+        } else if (astUtil.isCallExpression(node.object)) {
           checkValidPropTypeQualifier(node.property);
           checkValidCallExpression(node.object);
         }
-      } else if (node.type === 'CallExpression') {
+      } else if (astUtil.isCallExpression(node)) {
         checkValidCallExpression(node);
       }
     }
@@ -192,7 +195,8 @@ module.exports = {
           }
           if (node.specifiers.length >= 1) {
             const propTypesSpecifier = node.specifiers.find((specifier) => (
-              specifier.imported && specifier.imported.name === 'PropTypes'
+              specifier.imported
+              && specifier.imported.name === 'PropTypes'
             ));
             if (propTypesSpecifier) {
               propTypesPackageName = propTypesSpecifier.local.name;
@@ -202,7 +206,7 @@ module.exports = {
       },
 
       'ClassProperty, PropertyDefinition'(node) {
-        if (!node.static || !utils.isES6Component(node.parent.parent)) {
+        if (!node.static || !componentUtil.isES6Component(node.parent.parent, context)) {
           return;
         }
 
@@ -223,7 +227,7 @@ module.exports = {
 
         if (
           relatedComponent
-            && (utils.isES6Component(relatedComponent.node) || (
+            && (componentUtil.isES6Component(relatedComponent.node, context) || (
               relatedComponent.node.type !== 'ClassDeclaration' && utils.isReturningJSX(relatedComponent.node)))
             && (node.parent && node.parent.type === 'AssignmentExpression' && node.parent.right)
         ) {
@@ -232,7 +236,7 @@ module.exports = {
       },
 
       MethodDefinition(node) {
-        if (!utils.isES6Component(node.parent.parent)) {
+        if (!componentUtil.isES6Component(node.parent.parent, context)) {
           return;
         }
 
@@ -240,17 +244,15 @@ module.exports = {
       },
 
       ObjectExpression(node) {
-        const component = utils.isES5Component(node) && components.get(node);
+        const component = componentUtil.isES5Component(node, context) && components.get(node);
 
         if (!component) {
           return;
         }
 
-        node.properties.forEach((property) => {
-          if (property.type !== 'SpreadElement') {
-            reportErrorIfPropertyCasingTypo(property.value, property.key, false);
-            reportErrorIfLifecycleMethodCasingTypo(property);
-          }
+        node.properties.filter((property) => property.type !== 'SpreadElement').forEach((property) => {
+          reportErrorIfPropertyCasingTypo(property.value, property.key, false);
+          reportErrorIfLifecycleMethodCasingTypo(property);
         });
       },
     };

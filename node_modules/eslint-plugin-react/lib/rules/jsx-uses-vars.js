@@ -6,6 +6,7 @@
 'use strict';
 
 const docsUrl = require('../util/docsUrl');
+const markVariableAsUsed = require('../util/eslint').markVariableAsUsed;
 
 // ------------------------------------------------------------------------------
 // Rule Definition
@@ -14,10 +15,12 @@ const docsUrl = require('../util/docsUrl');
 const isTagNameRe = /^[a-z]/;
 const isTagName = (name) => isTagNameRe.test(name);
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
+  // eslint-disable-next-line eslint-plugin/prefer-message-ids -- https://github.com/not-an-aardvark/eslint-plugin-eslint-plugin/issues/292
   meta: {
     docs: {
-      description: 'Prevent variables used in JSX to be marked as unused',
+      description: 'Disallow variables used in JSX to be incorrectly marked as unused',
       category: 'Best Practices',
       recommended: true,
       url: docsUrl('jsx-uses-vars'),
@@ -51,7 +54,7 @@ module.exports = {
           return;
         }
 
-        context.markVariableAsUsed(name);
+        markVariableAsUsed(name, node, context);
       },
 
     };

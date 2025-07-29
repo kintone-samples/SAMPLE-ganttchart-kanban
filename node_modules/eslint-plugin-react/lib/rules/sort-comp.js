@@ -5,8 +5,9 @@
 
 'use strict';
 
-const has = require('object.hasown/polyfill')();
+const has = require('hasown');
 const entries = require('object.entries');
+const values = require('object.values');
 const arrayIncludes = require('array-includes');
 
 const Components = require('../util/Components');
@@ -85,6 +86,7 @@ const messages = {
   unsortedProps: '{{propA}} should be placed {{position}} {{propB}}',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
@@ -122,6 +124,7 @@ module.exports = {
   },
 
   create: Components.detect((context, components) => {
+    /** @satisfies {Record<string, { node: ASTNode, score: number, closest: { distance: number, ref: { node: null | ASTNode, index: number } } }>} */
     const errors = {};
     const methodsOrder = getMethodsOrder(context.options[0]);
 
@@ -231,7 +234,7 @@ module.exports = {
     /**
      * Get properties name
      * @param {Object} node - Property.
-     * @returns {String} Property name.
+     * @returns {string} Property name.
      */
     function getPropertyName(node) {
       if (node.kind === 'get') {
@@ -266,7 +269,7 @@ module.exports = {
         };
       }
       // Increment the prop score
-      errors[propA.index].score++;
+      errors[propA.index].score += 1;
       // Stop here if we already have pushed another node at this position
       if (getPropertyName(errors[propA.index].node) !== getPropertyName(propA.node)) {
         return;
@@ -285,18 +288,19 @@ module.exports = {
      * Dedupe errors, only keep the ones with the highest score and delete the others
      */
     function dedupeErrors() {
-      for (const i in errors) {
-        if (has(errors, i)) {
-          const index = errors[i].closest.ref.index;
-          if (errors[index]) {
-            if (errors[i].score > errors[index].score) {
-              delete errors[index];
-            } else {
-              delete errors[i];
-            }
+      entries(errors).forEach((entry) => {
+        const i = entry[0];
+        const error = entry[1];
+
+        const index = error.closest.ref.index;
+        if (errors[index]) {
+          if (error.score > errors[index].score) {
+            delete errors[index];
+          } else {
+            delete errors[i];
           }
         }
-      }
+      });
     }
 
     /**
@@ -431,9 +435,8 @@ module.exports = {
 
     return {
       'Program:exit'() {
-        const list = components.list();
-        Object.keys(list).forEach((component) => {
-          const properties = astUtil.getComponentProperties(list[component].node);
+        values(components.list()).forEach((component) => {
+          const properties = astUtil.getComponentProperties(component.node);
           checkPropsOrder(properties);
         });
 

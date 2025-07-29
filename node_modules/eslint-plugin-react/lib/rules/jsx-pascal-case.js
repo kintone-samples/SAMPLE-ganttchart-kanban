@@ -76,6 +76,7 @@ const messages = {
   usePascalOrSnakeCase: 'Imported JSX component {{name}} must be in PascalCase or SCREAMING_SNAKE_CASE',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
@@ -155,7 +156,7 @@ module.exports = {
             });
             break;
           }
-          index++;
+          index += 1;
         } while (index < checkNames.length && !allowNamespace);
       },
     };

@@ -5,8 +5,8 @@
 
 'use strict';
 
-const Components = require('../util/Components');
 const docsUrl = require('../util/docsUrl');
+const componentUtil = require('../util/componentUtil');
 const report = require('../util/report');
 
 // ------------------------------------------------------------------------------
@@ -98,24 +98,20 @@ const messages = {
   unusedWithClass: 'Unused method or property "{{name}}" of class "{{className}}"',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Prevent declaring unused methods of component class',
+      description: 'Disallow declaring unused methods of component class',
       category: 'Best Practices',
       recommended: false,
       url: docsUrl('no-unused-class-component-methods'),
     },
     messages,
-    schema: [
-      {
-        type: 'object',
-        additionalProperties: false,
-      },
-    ],
+    schema: [],
   },
 
-  create: Components.detect((context, components, utils) => {
+  create: ((context) => {
     let classInfo = null;
 
     // Takes an ObjectExpression node and adds all named Property nodes to the
@@ -171,13 +167,13 @@ module.exports = {
 
     return {
       ClassDeclaration(node) {
-        if (utils.isES6Component(node)) {
+        if (componentUtil.isES6Component(node, context)) {
           classInfo = getInitialClassInfo(node, true);
         }
       },
 
       ObjectExpression(node) {
-        if (utils.isES5Component(node)) {
+        if (componentUtil.isES5Component(node, context)) {
           classInfo = getInitialClassInfo(node, false);
         }
       },
@@ -250,11 +246,11 @@ module.exports = {
 
         // detect `{ foo, bar: baz } = this`
         if (node.init && isThisExpression(node.init) && node.id.type === 'ObjectPattern') {
-          node.id.properties.forEach((prop) => {
-            if (prop.type === 'Property' && isKeyLiteralLike(prop, prop.key)) {
-              addUsedProperty(prop.key);
-            }
-          });
+          node.id.properties
+            .filter((prop) => prop.type === 'Property' && isKeyLiteralLike(prop, prop.key))
+            .forEach((prop) => {
+              addUsedProperty('key' in prop ? prop.key : undefined);
+            });
         }
       },
     };

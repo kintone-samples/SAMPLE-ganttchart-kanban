@@ -10,6 +10,7 @@ const getTokenBeforeClosingBracket = require('../util/getTokenBeforeClosingBrack
 const docsUrl = require('../util/docsUrl');
 const log = require('../util/log');
 const report = require('../util/report');
+const getSourceCode = require('../util/eslint').getSourceCode;
 
 let isWarnedForDeprecation = false;
 
@@ -22,11 +23,13 @@ const messages = {
   needSpaceBeforeClose: 'A space is required before closing bracket',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     deprecated: true,
+    replacedBy: ['jsx-tag-spacing'],
     docs: {
-      description: 'Validate spacing before closing bracket in JSX',
+      description: 'Enforce spacing before closing bracket in JSX',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('jsx-space-before-closing'),
@@ -53,10 +56,10 @@ module.exports = {
           return;
         }
 
-        const sourceCode = context.getSourceCode();
+        const sourceCode = getSourceCode(context);
 
         const leftToken = getTokenBeforeClosingBracket(node);
-        const closingSlash = sourceCode.getTokenAfter(leftToken);
+        const closingSlash = /** @type {import('eslint').AST.Token} */ (sourceCode.getTokenAfter(leftToken));
 
         if (leftToken.loc.end.line !== closingSlash.loc.start.line) {
           return;

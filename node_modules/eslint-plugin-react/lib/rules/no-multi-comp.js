@@ -5,6 +5,8 @@
 
 'use strict';
 
+const values = require('object.values');
+
 const Components = require('../util/Components');
 const docsUrl = require('../util/docsUrl');
 const report = require('../util/report');
@@ -17,10 +19,11 @@ const messages = {
   onlyOneComponent: 'Declare only one React component per file',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Prevent multiple component definition per file',
+      description: 'Disallow multiple component definition per file',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('no-multi-comp'),
@@ -47,7 +50,7 @@ module.exports = {
     /**
      * Checks if the component is ignored
      * @param {Object} component The component being checked.
-     * @returns {Boolean} True if the component is ignored, false if not.
+     * @returns {boolean} True if the component is ignored, false if not.
      */
     function isIgnored(component) {
       return (
@@ -64,15 +67,14 @@ module.exports = {
           return;
         }
 
-        const list = components.list();
-
-        Object.keys(list).filter((component) => !isIgnored(list[component])).forEach((component, i) => {
-          if (i >= 1) {
+        values(components.list())
+          .filter((component) => !isIgnored(component))
+          .slice(1)
+          .forEach((component) => {
             report(context, messages.onlyOneComponent, 'onlyOneComponent', {
-              node: list[component].node,
+              node: component.node,
             });
-          }
-        });
+          });
       },
     };
   }),

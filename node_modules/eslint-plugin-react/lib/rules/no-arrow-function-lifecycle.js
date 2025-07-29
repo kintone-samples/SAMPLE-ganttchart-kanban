@@ -9,11 +9,16 @@ const values = require('object.values');
 
 const Components = require('../util/Components');
 const astUtil = require('../util/ast');
+const componentUtil = require('../util/componentUtil');
 const docsUrl = require('../util/docsUrl');
 const lifecycleMethods = require('../util/lifecycleMethods');
 const report = require('../util/report');
+const eslintUtil = require('../util/eslint');
 
-function getText(node) {
+const getSourceCode = eslintUtil.getSourceCode;
+const getText = eslintUtil.getText;
+
+function getRuleText(node) {
   const params = node.value.params.map((p) => p.name);
 
   if (node.type === 'Property') {
@@ -31,6 +36,7 @@ const messages = {
   lifecycle: '{{propertyName}} is a React lifecycle method, and should not be an arrow function or in a class field. Use an instance method instead.',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
@@ -44,7 +50,7 @@ module.exports = {
     fixable: 'code',
   },
 
-  create: Components.detect((context, components, utils) => {
+  create: Components.detect((context, components) => {
     /**
      * @param {Array} properties list of component properties
      */
@@ -57,7 +63,7 @@ module.exports = {
         const propertyName = astUtil.getPropertyName(node);
         const nodeType = node.value.type;
         const isLifecycleMethod = (
-          node.static && !utils.isES5Component(node)
+          node.static && !componentUtil.isES5Component(node, context)
             ? lifecycleMethods.static
             : lifecycleMethods.instance
         ).indexOf(propertyName) > -1;
@@ -65,7 +71,7 @@ module.exports = {
         if (nodeType === 'ArrowFunctionExpression' && isLifecycleMethod) {
           const body = node.value.body;
           const isBlockBody = body.type === 'BlockStatement';
-          const sourceCode = context.getSourceCode();
+          const sourceCode = getSourceCode(context);
 
           let nextComment = [];
           let previousComment = [];
@@ -93,13 +99,15 @@ module.exports = {
             }
             bodyRange = [
               (previousComment.length > 0 ? previousComment[0] : body).range[0],
-              (nextComment.length > 0 ? nextComment[nextComment.length - 1] : body).range[1],
+              (nextComment.length > 0 ? nextComment[nextComment.length - 1] : body).range[1]
+                + (node.value.body.type === 'ObjectExpression' ? 1 : 0), // to account for a wrapped end paren
             ];
           }
           const headRange = [
             node.key.range[1],
             (previousComment.length > 0 ? previousComment[0] : body).range[0],
           ];
+          const hasSemi = node.value.expression && getText(context, node).slice(node.value.range[1] - node.range[0]) === ';';
 
           report(
             context,
@@ -113,13 +121,13 @@ module.exports = {
               fix(fixer) {
                 if (!sourceCode.getCommentsAfter) {
                   // eslint 3.x
-                  return isBlockBody && fixer.replaceTextRange(headRange, getText(node));
+                  return isBlockBody && fixer.replaceTextRange(headRange, getRuleText(node));
                 }
                 return [].concat(
-                  fixer.replaceTextRange(headRange, getText(node)),
+                  fixer.replaceTextRange(headRange, getRuleText(node)),
                   isBlockBody ? [] : fixer.replaceTextRange(
-                    bodyRange,
-                    `{ return ${previousComment.map((x) => sourceCode.getText(x)).join('')}${sourceCode.getText(body)}${nextComment.map((x) => sourceCode.getText(x)).join('')}; }`
+                    [bodyRange[0], bodyRange[1] + (hasSemi ? 1 : 0)],
+                    `{ return ${previousComment.map((x) => getText(context, x)).join('')}${getText(context, body)}${nextComment.map((x) => getText(context, x)).join('')}; }`
                   )
                 );
               },

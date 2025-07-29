@@ -5,7 +5,7 @@
 
 'use strict';
 
-const has = require('object.hasown/polyfill')();
+const has = require('hasown');
 const includes = require('array-includes');
 const variableUtil = require('../util/variable');
 const jsxUtil = require('../util/jsx');
@@ -20,10 +20,11 @@ const messages = {
   wrongDepth: 'Expected the depth of nested jsx elements to be <= {{needed}}, but found {{found}}.',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Validate JSX maximum depth',
+      description: 'Enforce JSX maximum depth',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('jsx-max-depth'),
@@ -70,7 +71,7 @@ module.exports = {
       while (jsxUtil.isJSX(node.parent) || isExpression(node.parent)) {
         node = node.parent;
         if (jsxUtil.isJSX(node)) {
-          count++;
+          count += 1;
         }
       }
 
@@ -87,25 +88,23 @@ module.exports = {
       });
     }
 
-    function findJSXElementOrFragment(variables, name, previousReferences) {
+    function findJSXElementOrFragment(startNode, name, previousReferences) {
       function find(refs, prevRefs) {
-        let i = refs.length;
-
-        while (--i >= 0) {
-          if (has(refs[i], 'writeExpr')) {
+        for (let i = refs.length - 1; i >= 0; i--) {
+          if (typeof refs[i].writeExpr !== 'undefined') {
             const writeExpr = refs[i].writeExpr;
 
             return (jsxUtil.isJSX(writeExpr)
               && writeExpr)
               || ((writeExpr && writeExpr.type === 'Identifier')
-              && findJSXElementOrFragment(variables, writeExpr.name, prevRefs));
+              && findJSXElementOrFragment(startNode, writeExpr.name, prevRefs));
           }
         }
 
         return null;
       }
 
-      const variable = variableUtil.getVariable(variables, name);
+      const variable = variableUtil.getVariableFromContext(context, startNode, name);
       if (variable && variable.references) {
         const containDuplicates = previousReferences.some((ref) => includes(variable.references, ref));
 
@@ -121,12 +120,8 @@ module.exports = {
     }
 
     function checkDescendant(baseDepth, children) {
-      baseDepth++;
-      (children || []).forEach((node) => {
-        if (!hasJSX(node)) {
-          return;
-        }
-
+      baseDepth += 1;
+      (children || []).filter((node) => hasJSX(node)).forEach((node) => {
         if (baseDepth > maxDepth) {
           report(node, baseDepth);
         } else if (!isLeaf(node)) {
@@ -155,8 +150,7 @@ module.exports = {
           return;
         }
 
-        const variables = variableUtil.variablesInScope(context);
-        const element = findJSXElementOrFragment(variables, node.expression.name, []);
+        const element = findJSXElementOrFragment(node, node.expression.name, []);
 
         if (element) {
           const baseDepth = getDepth(node);

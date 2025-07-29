@@ -5,10 +5,16 @@
 
 'use strict';
 
+const getSourceCode = require('./eslint').getSourceCode;
+
 const JSX_ANNOTATION_REGEX = /@jsx\s+([^\s]+)/;
 // Does not check for reserved keywords or unicode characters
 const JS_IDENTIFIER_REGEX = /^[_$a-zA-Z][_$a-zA-Z0-9]*$/;
 
+/**
+ * @param {Context} context
+ * @returns {string}
+ */
 function getCreateClassFromContext(context) {
   let pragma = 'createReactClass';
   // .eslintrc shared settings (https://eslint.org/docs/user-guide/configuring#adding-shared-settings)
@@ -21,6 +27,10 @@ function getCreateClassFromContext(context) {
   return pragma;
 }
 
+/**
+ * @param {Context} context
+ * @returns {string}
+ */
 function getFragmentFromContext(context) {
   let pragma = 'Fragment';
   // .eslintrc shared settings (https://eslint.org/docs/user-guide/configuring#adding-shared-settings)
@@ -33,10 +43,14 @@ function getFragmentFromContext(context) {
   return pragma;
 }
 
+/**
+ * @param {Context} context
+ * @returns {string}
+ */
 function getFromContext(context) {
   let pragma = 'React';
 
-  const sourceCode = context.getSourceCode();
+  const sourceCode = getSourceCode(context);
   const pragmaNode = sourceCode.getAllComments().find((node) => JSX_ANNOTATION_REGEX.test(node.value));
 
   if (pragmaNode) {
@@ -48,7 +62,8 @@ function getFromContext(context) {
   }
 
   if (!JS_IDENTIFIER_REGEX.test(pragma)) {
-    throw new Error(`React pragma ${pragma} is not a valid identifier`);
+    console.warn(`React pragma ${pragma} is not a valid identifier`);
+    return 'React';
   }
   return pragma;
 }

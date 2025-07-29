@@ -16,10 +16,11 @@ const messages = {
   noFindDOMNode: 'Do not use findDOMNode. It doesn’t work with function components and is deprecated in StrictMode. See https://reactjs.org/docs/react-dom.html#finddomnode',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Prevent usage of findDOMNode',
+      description: 'Disallow usage of findDOMNode',
       category: 'Best Practices',
       recommended: true,
       url: docsUrl('no-find-dom-node'),
@@ -35,9 +36,14 @@ module.exports = {
       CallExpression(node) {
         const callee = node.callee;
 
-        const isfindDOMNode = (callee.name === 'findDOMNode')
-          || (callee.property && callee.property.name === 'findDOMNode');
-        if (!isfindDOMNode) {
+        const isFindDOMNode = ('name' in callee && callee.name === 'findDOMNode') || (
+          'property' in callee
+          && callee.property
+          && 'name' in callee.property
+          && callee.property.name === 'findDOMNode'
+        );
+
+        if (!isFindDOMNode) {
           return;
         }
 

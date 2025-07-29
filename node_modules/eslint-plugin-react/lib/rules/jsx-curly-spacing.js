@@ -11,8 +11,9 @@
 
 'use strict';
 
-const has = require('object.hasown/polyfill')();
+const has = require('hasown');
 const docsUrl = require('../util/docsUrl');
+const getSourceCode = require('../util/eslint').getSourceCode;
 const report = require('../util/report');
 
 // ------------------------------------------------------------------------------
@@ -34,10 +35,11 @@ const messages = {
   spaceNeededBefore: 'A space is required before \'{{token}}\'',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Enforce or disallow spaces inside of curly braces in JSX attributes',
+      description: 'Enforce or disallow spaces inside of curly braces in JSX attributes and expressions',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('jsx-curly-spacing'),
@@ -68,7 +70,7 @@ module.exports = {
           },
         },
         basicConfigOrBoolean: {
-          oneOf: [{
+          anyOf: [{
             $ref: '#/definitions/basicConfig',
           }, {
             type: 'boolean',
@@ -77,7 +79,7 @@ module.exports = {
       },
       type: 'array',
       items: [{
-        oneOf: [{
+        anyOf: [{
           allOf: [{
             $ref: '#/definitions/basicConfig',
           }, {
@@ -175,7 +177,7 @@ module.exports = {
      * @returns {Object|*|{range, text}}
      */
     function fixByTrimmingWhitespace(fixer, fromLoc, toLoc, mode, spacing) {
-      let replacementText = context.getSourceCode().text.slice(fromLoc, toLoc);
+      let replacementText = getSourceCode(context).text.slice(fromLoc, toLoc);
       if (mode === 'start') {
         replacementText = replacementText.replace(/^\s+/gm, '');
       } else {
@@ -206,7 +208,7 @@ module.exports = {
           token: token.value,
         },
         fix(fixer) {
-          const nextToken = context.getSourceCode().getTokenAfter(token);
+          const nextToken = getSourceCode(context).getTokenAfter(token);
           return fixByTrimmingWhitespace(fixer, token.range[1], nextToken.range[0], 'start', spacing);
         },
       });
@@ -227,7 +229,7 @@ module.exports = {
           token: token.value,
         },
         fix(fixer) {
-          const previousToken = context.getSourceCode().getTokenBefore(token);
+          const previousToken = getSourceCode(context).getTokenBefore(token);
           return fixByTrimmingWhitespace(fixer, previousToken.range[1], token.range[0], 'end', spacing);
         },
       });
@@ -247,7 +249,7 @@ module.exports = {
           token: token.value,
         },
         fix(fixer) {
-          const sourceCode = context.getSourceCode();
+          const sourceCode = getSourceCode(context);
           const nextToken = sourceCode.getTokenAfter(token);
           let nextComment;
 
@@ -284,7 +286,7 @@ module.exports = {
           token: token.value,
         },
         fix(fixer) {
-          const sourceCode = context.getSourceCode();
+          const sourceCode = getSourceCode(context);
           const previousToken = sourceCode.getTokenBefore(token);
           let previousComment;
 
@@ -370,7 +372,7 @@ module.exports = {
         return;
       }
 
-      const sourceCode = context.getSourceCode();
+      const sourceCode = getSourceCode(context);
       const first = sourceCode.getFirstToken(node);
       const last = sourceCode.getLastToken(node);
       let second = sourceCode.getTokenAfter(first, { includeComments: true });

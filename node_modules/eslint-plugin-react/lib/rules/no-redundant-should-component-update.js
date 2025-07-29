@@ -4,8 +4,8 @@
 
 'use strict';
 
-const Components = require('../util/Components');
 const astUtil = require('../util/ast');
+const componentUtil = require('../util/componentUtil');
 const docsUrl = require('../util/docsUrl');
 const report = require('../util/report');
 
@@ -17,10 +17,11 @@ const messages = {
   noShouldCompUpdate: '{{component}} does not need shouldComponentUpdate when extending React.PureComponent.',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Flag shouldComponentUpdate when extending PureComponent',
+      description: 'Disallow usage of shouldComponentUpdate when extending React.PureComponent',
       category: 'Possible Errors',
       recommended: false,
       url: docsUrl('no-redundant-should-component-update'),
@@ -31,11 +32,11 @@ module.exports = {
     schema: [],
   },
 
-  create: Components.detect((context, components, utils) => {
+  create(context) {
     /**
      * Checks for shouldComponentUpdate property
      * @param {ASTNode} node The AST node being checked.
-     * @returns {Boolean} Whether or not the property exists.
+     * @returns {boolean} Whether or not the property exists.
      */
     function hasShouldComponentUpdate(node) {
       const properties = astUtil.getComponentProperties(node);
@@ -48,7 +49,7 @@ module.exports = {
     /**
      * Get name of node if available
      * @param {ASTNode} node The AST node being checked.
-     * @return {String} The name of the node
+     * @return {string} The name of the node
      */
     function getNodeName(node) {
       if (node.id) {
@@ -65,7 +66,7 @@ module.exports = {
      * @param {ASTNode} node The AST node being checked.
      */
     function checkForViolation(node) {
-      if (utils.isPureComponent(node)) {
+      if (componentUtil.isPureComponent(node, context)) {
         const hasScu = hasShouldComponentUpdate(node);
         if (hasScu) {
           const className = getNodeName(node);
@@ -83,5 +84,5 @@ module.exports = {
       ClassDeclaration: checkForViolation,
       ClassExpression: checkForViolation,
     };
-  }),
+  },
 };

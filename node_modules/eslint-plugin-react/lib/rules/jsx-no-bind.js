@@ -8,10 +8,11 @@
 'use strict';
 
 const propName = require('jsx-ast-utils/propName');
-const Components = require('../util/Components');
 const docsUrl = require('../util/docsUrl');
+const astUtil = require('../util/ast');
 const jsxUtil = require('../util/jsx');
 const report = require('../util/report');
+const getAncestors = require('../util/eslint').getAncestors;
 
 // -----------------------------------------------------------------------------
 // Rule Definition
@@ -24,10 +25,11 @@ const messages = {
   func: 'JSX props should not use functions',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Prevents usage of Function.prototype.bind and arrow functions in React component props',
+      description: 'Disallow `.bind()` or arrow functions in JSX props',
       category: 'Best Practices',
       recommended: false,
       url: docsUrl('jsx-no-bind'),
@@ -63,13 +65,16 @@ module.exports = {
     }],
   },
 
-  create: Components.detect((context) => {
+  create(context) {
     const configuration = context.options[0] || {};
 
     // Keep track of all the variable names pointing to a bind call,
     // bind expression or an arrow function in different block statements
     const blockVariableNameSets = {};
 
+    /**
+     * @param {string | number} blockStart
+     */
     function setBlockVariableNameSet(blockStart) {
       blockVariableNameSets[blockStart] = {
         arrowFunc: new Set(),
@@ -80,46 +85,49 @@ module.exports = {
     }
 
     function getNodeViolationType(node) {
-      const nodeType = node.type;
-
       if (
         !configuration.allowBind
-        && nodeType === 'CallExpression'
+        && astUtil.isCallExpression(node)
         && node.callee.type === 'MemberExpression'
         && node.callee.property.type === 'Identifier'
         && node.callee.property.name === 'bind'
       ) {
         return 'bindCall';
       }
-      if (nodeType === 'ConditionalExpression') {
+      if (node.type === 'ConditionalExpression') {
         return getNodeViolationType(node.test)
                || getNodeViolationType(node.consequent)
                || getNodeViolationType(node.alternate);
       }
-      if (!configuration.allowArrowFunctions && nodeType === 'ArrowFunctionExpression') {
+      if (!configuration.allowArrowFunctions && node.type === 'ArrowFunctionExpression') {
         return 'arrowFunc';
       }
       if (
         !configuration.allowFunctions
-        && (nodeType === 'FunctionExpression' || nodeType === 'FunctionDeclaration')
+        && (node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration')
       ) {
         return 'func';
       }
-      if (!configuration.allowBind && nodeType === 'BindExpression') {
+      if (!configuration.allowBind && node.type === 'BindExpression') {
         return 'bindExpression';
       }
 
       return null;
     }
 
+    /**
+     * @param {string | number} violationType
+     * @param {unknown} variableName
+     * @param {string | number} blockStart
+     */
     function addVariableNameToSet(violationType, variableName, blockStart) {
       blockVariableNameSets[blockStart][violationType].add(variableName);
     }
 
     function getBlockStatementAncestors(node) {
-      return context.getAncestors(node).reverse().filter(
+      return getAncestors(context, node).filter(
         (ancestor) => ancestor.type === 'BlockStatement'
-      );
+      ).reverse();
     }
 
     function reportVariableViolation(node, name, blockStart) {
@@ -168,11 +176,10 @@ module.exports = {
         if (
           blockAncestors.length > 0
           && variableViolationType
+          && 'kind' in node.parent
           && node.parent.kind === 'const' // only support const right now
         ) {
-          addVariableNameToSet(
-            variableViolationType, node.id.name, blockAncestors[0].range[0]
-          );
+          addVariableNameToSet(variableViolationType, 'name' in node.id ? node.id.name : undefined, blockAncestors[0].range[0]);
         }
       },
 
@@ -198,5 +205,5 @@ module.exports = {
         }
       },
     };
-  }),
+  },
 };

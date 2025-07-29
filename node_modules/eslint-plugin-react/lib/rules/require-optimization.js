@@ -5,14 +5,19 @@
 
 'use strict';
 
+const values = require('object.values');
+
 const Components = require('../util/Components');
+const componentUtil = require('../util/componentUtil');
 const docsUrl = require('../util/docsUrl');
 const report = require('../util/report');
+const getScope = require('../util/eslint').getScope;
 
 const messages = {
   noShouldComponentUpdate: 'Component is not optimized. Please add a shouldComponentUpdate method.',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
@@ -38,14 +43,14 @@ module.exports = {
     }],
   },
 
-  create: Components.detect((context, components, utils) => {
+  create: Components.detect((context, components) => {
     const configuration = context.options[0] || {};
     const allowDecorators = configuration.allowDecorators || [];
 
     /**
      * Checks to see if our component is decorated by PureRenderMixin via reactMixin
      * @param {ASTNode} node The AST node being checked.
-     * @returns {Boolean} True if node is decorated with a PureRenderMixin, false if not.
+     * @returns {boolean} True if node is decorated with a PureRenderMixin, false if not.
      */
     function hasPureRenderDecorator(node) {
       if (node.decorators && node.decorators.length) {
@@ -72,7 +77,7 @@ module.exports = {
     /**
      * Checks to see if our component is custom decorated
      * @param {ASTNode} node The AST node being checked.
-     * @returns {Boolean} True if node is decorated name with a custom decorated, false if not.
+     * @returns {boolean} True if node is decorated name with a custom decorated, false if not.
      */
     function hasCustomDecorator(node) {
       const allowLength = allowDecorators.length;
@@ -80,9 +85,10 @@ module.exports = {
       if (allowLength && node.decorators && node.decorators.length) {
         for (let i = 0; i < allowLength; i++) {
           for (let j = 0, l = node.decorators.length; j < l; j++) {
+            const expression = node.decorators[j].expression;
             if (
-              node.decorators[j].expression
-              && node.decorators[j].expression.name === allowDecorators[i]
+              expression
+              && expression.name === allowDecorators[i]
             ) {
               return true;
             }
@@ -96,19 +102,16 @@ module.exports = {
     /**
      * Checks if we are declaring a shouldComponentUpdate method
      * @param {ASTNode} node The AST node being checked.
-     * @returns {Boolean} True if we are declaring a shouldComponentUpdate method, false if not.
+     * @returns {boolean} True if we are declaring a shouldComponentUpdate method, false if not.
      */
     function isSCUDeclared(node) {
-      return Boolean(
-        node
-        && node.name === 'shouldComponentUpdate'
-      );
+      return !!node && node.name === 'shouldComponentUpdate';
     }
 
     /**
      * Checks if we are declaring a PureRenderMixin mixin
      * @param {ASTNode} node The AST node being checked.
-     * @returns {Boolean} True if we are declaring a PureRenderMixin method, false if not.
+     * @returns {boolean} True if we are declaring a PureRenderMixin method, false if not.
      */
     function isPureRenderDeclared(node) {
       let hasPR = false;
@@ -121,8 +124,8 @@ module.exports = {
         }
       }
 
-      return Boolean(
-        node
+      return (
+        !!node
         && node.key.name === 'mixins'
         && hasPR
       );
@@ -150,11 +153,12 @@ module.exports = {
 
     /**
      * Checks if we are declaring function in class
-     * @returns {Boolean} True if we are declaring function in class, false if not.
+     * @param {ASTNode} node
+     * @returns {boolean} True if we are declaring function in class, false if not.
      */
-    function isFunctionInClass() {
+    function isFunctionInClass(node) {
       let blockNode;
-      let scope = context.getScope();
+      let scope = getScope(context, node);
       while (scope) {
         blockNode = scope.block;
         if (blockNode && blockNode.type === 'ClassDeclaration') {
@@ -169,7 +173,7 @@ module.exports = {
     return {
       ArrowFunctionExpression(node) {
         // Skip if the function is declared in the class
-        if (isFunctionInClass()) {
+        if (isFunctionInClass(node)) {
           return;
         }
         // Stateless Functional Components cannot be optimized (yet)
@@ -177,7 +181,11 @@ module.exports = {
       },
 
       ClassDeclaration(node) {
-        if (!(hasPureRenderDecorator(node) || hasCustomDecorator(node) || utils.isPureComponent(node))) {
+        if (!(
+          hasPureRenderDecorator(node)
+          || hasCustomDecorator(node)
+          || componentUtil.isPureComponent(node, context)
+        )) {
           return;
         }
         markSCUAsDeclared(node);
@@ -185,7 +193,7 @@ module.exports = {
 
       FunctionDeclaration(node) {
         // Skip if the function is declared in the class
-        if (isFunctionInClass()) {
+        if (isFunctionInClass(node)) {
           return;
         }
         // Stateless Functional Components cannot be optimized (yet)
@@ -194,7 +202,7 @@ module.exports = {
 
       FunctionExpression(node) {
         // Skip if the function is declared in the class
-        if (isFunctionInClass()) {
+        if (isFunctionInClass(node)) {
           return;
         }
         // Stateless Functional Components cannot be optimized (yet)
@@ -220,12 +228,12 @@ module.exports = {
       },
 
       'Program:exit'() {
-        const list = components.list();
-
         // Report missing shouldComponentUpdate for all components
-        Object.keys(list).filter((component) => !list[component].hasSCU).forEach((component) => {
-          reportMissingOptimization(list[component]);
-        });
+        values(components.list())
+          .filter((component) => !component.hasSCU)
+          .forEach((component) => {
+            reportMissingOptimization(component);
+          });
       },
     };
   }),

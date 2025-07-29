@@ -9,8 +9,10 @@ const fromEntries = require('object.fromentries');
 const Components = require('../util/Components');
 const docsUrl = require('../util/docsUrl');
 const astUtil = require('../util/ast');
+const componentUtil = require('../util/componentUtil');
 const propsUtil = require('../util/props');
 const report = require('../util/report');
+const getScope = require('../util/eslint').getScope;
 
 // ------------------------------------------------------------------------------
 // Positioning Options
@@ -54,10 +56,11 @@ const messages = {
   declareOutsideClass: '\'{{name}}\' should be declared outside the class body.',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Defines where React component static properties should be positioned.',
+      description: 'Enforces where React component static properties should be positioned.',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('static-property-placement'),
@@ -95,11 +98,12 @@ module.exports = {
 
     /**
       * Checks if we are declaring context in class
-      * @returns {Boolean} True if we are declaring context in class, false if not.
+      * @param {ASTNode} node
+      * @returns {boolean} True if we are declaring context in class, false if not.
      */
-    function isContextInClass() {
+    function isContextInClass(node) {
       let blockNode;
-      let scope = context.getScope();
+      let scope = getScope(context, node);
       while (scope) {
         blockNode = scope.block;
         if (blockNode && blockNode.type === 'ClassDeclaration') {
@@ -127,7 +131,13 @@ module.exports = {
       });
 
       // If name is set but the configured rule does not match expected then report error
-      if (name && config[name] !== expectedRule) {
+      if (
+        name
+        && (
+          config[name] !== expectedRule
+          || (!node.static && (config[name] === STATIC_PUBLIC_FIELD || config[name] === STATIC_GETTER))
+        )
+      ) {
         const messageId = ERROR_MESSAGES[config[name]];
         report(context, messages[messageId], messageId, {
           node,
@@ -141,7 +151,7 @@ module.exports = {
     // ----------------------------------------------------------------------
     return {
       'ClassProperty, PropertyDefinition'(node) {
-        if (!utils.getParentES6Component()) {
+        if (!componentUtil.getParentES6Component(context, node)) {
           return;
         }
 
@@ -152,7 +162,7 @@ module.exports = {
         // If definition type is undefined then it must not be a defining expression or if the definition is inside a
         // class body then skip this node.
         const right = node.parent.right;
-        if (!right || right.type === 'undefined' || isContextInClass()) {
+        if (!right || right.type === 'undefined' || isContextInClass(node)) {
           return;
         }
 
@@ -160,7 +170,7 @@ module.exports = {
         const relatedComponent = utils.getRelatedComponent(node);
 
         // If the related component is not an ES6 component then skip this node
-        if (!relatedComponent || !utils.isES6Component(relatedComponent.node)) {
+        if (!relatedComponent || !componentUtil.isES6Component(relatedComponent.node, context)) {
           return;
         }
 
@@ -170,7 +180,11 @@ module.exports = {
 
       MethodDefinition(node) {
         // If the function is inside a class and is static getter then check if correctly positioned
-        if (utils.getParentES6Component() && node.static && node.kind === 'get') {
+        if (
+          componentUtil.getParentES6Component(context, node)
+          && node.static
+          && node.kind === 'get'
+        ) {
           // Report error if needed
           reportNodeIncorrectlyPositioned(node, STATIC_GETTER);
         }

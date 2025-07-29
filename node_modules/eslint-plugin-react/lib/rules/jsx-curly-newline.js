@@ -5,7 +5,11 @@
 'use strict';
 
 const docsUrl = require('../util/docsUrl');
+const eslintUtil = require('../util/eslint');
 const report = require('../util/report');
+
+const getSourceCode = eslintUtil.getSourceCode;
+const getText = eslintUtil.getText;
 
 // ------------------------------------------------------------------------------
 // Rule Definition
@@ -41,12 +45,13 @@ const messages = {
   unexpectedAfter: 'Unexpected newline after \'{\'.',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     type: 'layout',
 
     docs: {
-      description: 'Enforce consistent line breaks inside jsx curly',
+      description: 'Enforce consistent linebreaks in curly braces in JSX attributes and expressions',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('jsx-curly-newline'),
@@ -56,7 +61,7 @@ module.exports = {
 
     schema: [
       {
-        oneOf: [
+        anyOf: [
           {
             enum: ['consistent', 'never'],
           },
@@ -76,7 +81,7 @@ module.exports = {
   },
 
   create(context) {
-    const sourceCode = context.getSourceCode();
+    const sourceCode = getSourceCode(context);
     const option = getNormalizedOption(context);
 
     // ----------------------------------------------------------------------
@@ -129,8 +134,7 @@ module.exports = {
         report(context, messages.unexpectedAfter, 'unexpectedAfter', {
           node: leftCurly,
           fix(fixer) {
-            return sourceCode
-              .getText()
+            return getText(context)
               .slice(leftCurly.range[1], tokenAfterLeftCurly.range[0])
               .trim()
               ? null // If there is a comment between the { and the first element, don't do a fix.
@@ -148,8 +152,7 @@ module.exports = {
         report(context, messages.unexpectedBefore, 'unexpectedBefore', {
           node: rightCurly,
           fix(fixer) {
-            return sourceCode
-              .getText()
+            return getText(context)
               .slice(tokenBeforeRightCurly.range[1], rightCurly.range[0])
               .trim()
               ? null // If there is a comment between the last element and the }, don't do a fix.

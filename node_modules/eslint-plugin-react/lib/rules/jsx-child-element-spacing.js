@@ -44,10 +44,11 @@ const messages = {
   spacingBeforeNext: 'Ambiguous spacing before next element {{element}}',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Ensures inline tags are not rendered without spaces between them',
+      description: 'Enforce or disallow spaces inside of curly braces in JSX attributes and expressions',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('jsx-child-element-spacing'),
@@ -56,14 +57,7 @@ module.exports = {
 
     messages,
 
-    schema: [
-      {
-        type: 'object',
-        properties: {},
-        default: {},
-        additionalProperties: false,
-      },
-    ],
+    schema: [],
   },
   create(context) {
     const TEXT_FOLLOWING_ELEMENT_PATTERN = /^\s*\n\s*\S/;

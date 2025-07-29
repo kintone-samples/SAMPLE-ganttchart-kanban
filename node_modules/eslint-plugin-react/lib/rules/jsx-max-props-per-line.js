@@ -6,11 +6,12 @@
 'use strict';
 
 const docsUrl = require('../util/docsUrl');
+const getText = require('../util/eslint').getText;
 const report = require('../util/report');
 
 function getPropName(context, propNode) {
   if (propNode.type === 'JSXSpreadAttribute') {
-    return context.getSourceCode().getText(propNode.argument);
+    return getText(context, propNode.argument);
   }
   return propNode.name.name;
 }
@@ -23,10 +24,11 @@ const messages = {
   newLine: 'Prop `{{prop}}` must be placed on a new line',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Limit maximum of props on a single line in JSX',
+      description: 'Enforce maximum of props on a single line in JSX',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('jsx-max-props-per-line'),
@@ -86,7 +88,6 @@ module.exports = {
       };
 
     function generateFixFunction(line, max) {
-      const sourceCode = context.getSourceCode();
       const output = [];
       const front = line[0].range[0];
       const back = line[line.length - 1].range[1];
@@ -95,9 +96,9 @@ module.exports = {
         const nodes = line.slice(i, i + max);
         output.push(nodes.reduce((prev, curr) => {
           if (prev === '') {
-            return sourceCode.getText(curr);
+            return getText(context, curr);
           }
-          return `${prev} ${sourceCode.getText(curr)}`;
+          return `${prev} ${getText(context, curr)}`;
         }, ''));
       }
 

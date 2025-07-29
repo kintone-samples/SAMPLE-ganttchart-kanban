@@ -5,6 +5,8 @@
 
 'use strict';
 
+const values = require('object.values');
+
 const Components = require('../util/Components');
 const docsUrl = require('../util/docsUrl');
 const report = require('../util/report');
@@ -17,10 +19,11 @@ const messages = {
   noSetState: 'Do not use setState',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Prevent usage of setState',
+      description: 'Disallow usage of setState',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('no-set-state'),
@@ -35,10 +38,10 @@ module.exports = {
     /**
      * Checks if the component is valid
      * @param {Object} component The component to process
-     * @returns {Boolean} True if the component is valid, false if not.
+     * @returns {boolean} True if the component is valid, false if not.
      */
     function isValid(component) {
-      return Boolean(component && !component.useSetState);
+      return !!component && !component.useSetState;
     }
 
     /**
@@ -46,9 +49,8 @@ module.exports = {
      * @param {Object} component The component to process
      */
     function reportSetStateUsages(component) {
-      let setStateUsage;
       for (let i = 0, j = component.setStateUsages.length; i < j; i++) {
-        setStateUsage = component.setStateUsages[i];
+        const setStateUsage = component.setStateUsages[i];
         report(context, messages.noSetState, 'noSetState', {
           node: setStateUsage,
         });
@@ -65,7 +67,7 @@ module.exports = {
         ) {
           return;
         }
-        const component = components.get(utils.getParentComponent());
+        const component = components.get(utils.getParentComponent(node));
         const setStateUsages = (component && component.setStateUsages) || [];
         setStateUsages.push(callee);
         components.set(node, {
@@ -75,10 +77,11 @@ module.exports = {
       },
 
       'Program:exit'() {
-        const list = components.list();
-        Object.keys(list).filter((component) => !isValid(list[component])).forEach((component) => {
-          reportSetStateUsages(list[component]);
-        });
+        values(components.list())
+          .filter((component) => !isValid(component))
+          .forEach((component) => {
+            reportSetStateUsages(component);
+          });
       },
     };
   }),

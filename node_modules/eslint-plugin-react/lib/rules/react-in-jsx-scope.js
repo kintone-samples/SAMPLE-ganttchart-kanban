@@ -18,10 +18,11 @@ const messages = {
   notInScope: '\'{{name}}\' must be in scope when using JSX',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Prevent missing React when using JSX',
+      description: 'Disallow missing React when using JSX',
       category: 'Possible Errors',
       recommended: true,
       url: docsUrl('react-in-jsx-scope'),
@@ -36,8 +37,7 @@ module.exports = {
     const pragma = pragmaUtil.getFromContext(context);
 
     function checkIfReactIsInScope(node) {
-      const variables = variableUtil.variablesInScope(context);
-      if (variableUtil.findVariable(variables, pragma)) {
+      if (variableUtil.getVariableFromContext(context, node, pragma)) {
         return;
       }
       report(context, messages.notInScope, 'notInScope', {

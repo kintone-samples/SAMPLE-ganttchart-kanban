@@ -5,7 +5,8 @@
 
 'use strict';
 
-const Components = require('../util/Components');
+const astUtil = require('../util/ast');
+const componentUtil = require('../util/componentUtil');
 const docsUrl = require('../util/docsUrl');
 const report = require('../util/report');
 
@@ -18,10 +19,11 @@ const messages = {
   stateInitClassProp: 'State initialization should be in a class property',
 };
 
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'State initialization in an ES6 class component should be in a constructor',
+      description: 'Enforce class component state initialization style',
       category: 'Stylistic Issues',
       recommended: false,
       url: docsUrl('state-in-constructor'),
@@ -34,7 +36,7 @@ module.exports = {
     }],
   },
 
-  create: Components.detect((context, components, utils) => {
+  create(context) {
     const option = context.options[0] || 'always';
     return {
       'ClassProperty, PropertyDefinition'(node) {
@@ -42,7 +44,7 @@ module.exports = {
           option === 'always'
           && !node.static
           && node.key.name === 'state'
-          && utils.getParentES6Component()
+          && componentUtil.getParentES6Component(context, node)
         ) {
           report(context, messages.stateInitConstructor, 'stateInitConstructor', {
             node,
@@ -52,9 +54,9 @@ module.exports = {
       AssignmentExpression(node) {
         if (
           option === 'never'
-          && utils.isStateMemberExpression(node.left)
-          && utils.inConstructor()
-          && utils.getParentES6Component()
+          && componentUtil.isStateMemberExpression(node.left)
+          && astUtil.inConstructor(context, node)
+          && componentUtil.getParentES6Component(context, node)
         ) {
           report(context, messages.stateInitClassProp, 'stateInitClassProp', {
             node,
@@ -62,5 +64,5 @@ module.exports = {
         }
       },
     };
-  }),
+  },
 };
