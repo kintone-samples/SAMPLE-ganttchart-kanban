@@ -51,6 +51,7 @@ const GanttCharts = ({ query = '' }) => {
             progress: Math.ceil(((status.get(record.status.value!) || 0) * 100) / Math.max(status.size - 1, 1)),
             styles: { progressColor: type.get(record.type.value!) || '#ff9e0d', progressSelectedColor: '#ff9e0d' },
             dependencies: record.parent.value ? [record.parent.value] : [],
+            type: 'task',
             // isDisabled: true,
           }
         }),
