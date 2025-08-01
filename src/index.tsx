@@ -18,11 +18,14 @@ interface KintoneEvent {
 
 const roots = new Map<HTMLElement, ReturnType<typeof createRoot>>()
 
+// 指定された DOM 要素に React コンポーネントをマウントする
 function renderReactComponent(container: HTMLElement, element: React.ReactElement) {
-  if (!roots.has(container)) {
-    roots.set(container, createRoot(container))
+  let root = roots.get(container);
+  if (!root) {
+    root = createRoot(container);
+    roots.set(container, root);
   }
-  roots.get(container)!.render(element)
+  root.render(element);
 }
 
 // レコード一覧のメニューの右側の空白部分の要素に、ガントチャート、カンバンを切り替えるボタンを表示する
