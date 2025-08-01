@@ -1,5 +1,5 @@
 /*
- * echarts sample program
+ * react sample program
  * Copyright (c) 2025 Cybozu
  *
  * Licensed under the MIT License
