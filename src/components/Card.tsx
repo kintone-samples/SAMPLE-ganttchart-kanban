@@ -1,16 +1,16 @@
 /*
  * echarts sample program
- * Copyright (c) 2022 Cybozu
+ * Copyright (c) 2025 Cybozu
  *
  * Licensed under the MIT License
  * https://opensource.org/license/mit/
  */
 
-import { KintoneRecordField } from '@kintone/rest-api-client'
-import { Card, Avatar, Tag } from 'antd'
-import React from 'react'
+import {KintoneRecordField} from '@kintone/rest-api-client';
+import {Card, Avatar, Tag} from 'antd';
+import React from 'react';
 
-const { Meta } = Card
+const {Meta} = Card;
 
 export interface KCard extends ReactTrello.DraggableCard {
   labelColor?: string
@@ -43,11 +43,11 @@ const Avatars = (props: { assignee: KintoneRecordField.UserSelect }) => {
           >
             {element.name}
           </Avatar>
-        )
+        );
       })}
     </Avatar.Group>
-  )
-}
+  );
+};
 
 // カンバンのカードのコンポーネントを定義する
 export const AntdCard = (props: KCard) => {
@@ -55,7 +55,7 @@ export const AntdCard = (props: KCard) => {
   return (
     <Card
       extra={<Tag color={props.labelColor}>{props.label}</Tag>}
-      style={{ width: 300 }}
+      style={{width: 300}}
       title={props.title}
       onClick={props.onClick}
     >
@@ -65,5 +65,5 @@ export const AntdCard = (props: KCard) => {
         description={props.description}
       />
     </Card>
-  )
-}
+  );
+};
