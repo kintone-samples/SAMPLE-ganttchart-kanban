@@ -41,7 +41,7 @@ kintone.events.on('app.record.detail.show', (event: KintoneEvent) => {
   let query = `parent = ${event.record.$id.value} or $id= ${event.record.$id.value}`;
   event.record.parent.value && (query += ` or $id = ${event.record.parent.value}`);
 
-  const headerMenuSpaceElement = kintone.app.getHeaderMenuSpaceElement();
+  const headerMenuSpaceElement = kintone.app.record.getHeaderMenuSpaceElement();
   if (!headerMenuSpaceElement) return event;
   renderReactComponent(headerMenuSpaceElement, <GanttCharts query={query} />);
 
